@@ -55,4 +55,5 @@ export const callTicket = (id) => data(api.patch(`/queue/${id}/call`));
 export const recallTicket = (id) => data(api.patch(`/queue/${id}/recall`));
 export const completeQueue = (id) => data(api.patch(`/queue/${id}/done`));
 export const skipQueue = (id) => data(api.patch(`/queue/${id}/skip`));
+export const setMode = (mode) => data(api.patch("/layanan/mode", { mode }));
 export const setLayananAktif = (id, aktif) => data(api.patch(`/layanan/${id}/aktif`, { aktif }));

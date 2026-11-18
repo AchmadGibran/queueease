@@ -14,7 +14,7 @@ const GREEN = "border-emerald-200 text-emerald-700 hover:bg-emerald-50";
 const RED = "border-rose-200 text-rose-700 hover:bg-rose-50";
 
 // Tabel antrean untuk petugas. onAction(action, row) dengan action: call | recall | done | skip
-export default function QueueTable({ rows, onAction, busy = false }) {
+export default function QueueTable({ rows, onAction, busy = false, showUrutan = true }) {
   if (!rows.length) return <div className="p-10 text-center text-sm text-slate-500">Tidak ada antrean yang cocok.</div>;
 
   return (
@@ -33,7 +33,7 @@ export default function QueueTable({ rows, onAction, busy = false }) {
         <tbody className="divide-y divide-slate-100">
           {rows.map((r) => (
             <tr key={r.id} className={r.status === "called" ? "bg-blue-50/50" : "hover:bg-slate-50/70"}>
-              <td className="px-5 py-3.5 text-base font-extrabold tracking-wide text-blue-700">{r.ticket}<span className="block text-[11px] font-semibold tracking-normal text-slate-400">Urutan #{r.urutan}</span></td>
+              <td className="px-5 py-3.5 text-base font-extrabold tracking-wide text-blue-700">{r.ticket}{showUrutan && <span className="block text-[11px] font-semibold tracking-normal text-slate-400">Urutan #{r.urutan}</span>}</td>
               <td className="px-5 py-3.5">
                 <p className="font-semibold text-slate-800">{r.nama}</p>
                 <p className="text-xs text-slate-500">{r.nim}{r.catatan ? ` · ${r.catatan}` : ""}</p>

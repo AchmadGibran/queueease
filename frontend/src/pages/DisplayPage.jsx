@@ -7,7 +7,7 @@ import Clock from "../components/Clock";
 import Skeleton from "../components/Skeleton";
 import { useCachedState } from "../utils/cache";
 import LiveIndicator from "../components/LiveIndicator";
-import { LayananIcon, nowServing } from "../utils/layanan";
+import { LayananIcon, nowServing, queueMode } from "../utils/layanan";
 
 // Layar publik untuk TV/monitor di area pelayanan: tanpa login, tanpa data pribadi
 export default function DisplayPage() {
@@ -29,6 +29,7 @@ export default function DisplayPage() {
   }, []);
 
   const now = nowServing(layanan);
+  const global = queueMode(layanan) === "global";
 
   return (
     <div className="min-h-screen bg-slate-900 px-6 py-8 text-white">
@@ -48,6 +49,18 @@ export default function DisplayPage() {
             {error && <p className="mt-1 text-xs text-red-400">Koneksi ke server terputus…</p>}
           </div>
         </div>
+
+        {global && (
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-blue-400/30 bg-gradient-to-r from-blue-600/30 to-indigo-600/20 px-7 py-5">
+            <div>
+              <p className="flex items-center gap-2 text-xs font-semibold tracking-[0.2em] text-blue-300"><Megaphone size={14} /> URUTAN UMUM SEKARANG</p>
+              <p className="mt-1 text-sm text-slate-300">
+                {now ? <>Dipanggil: <b className="text-white">{now.serving}</b> · {now.nama}</> : "Belum ada yang dipanggil"}
+              </p>
+            </div>
+            <p className={`text-6xl font-black tracking-wider ${now ? "text-white" : "text-slate-600"}`}>{now ? `#${now.serving_urutan}` : "—"}</p>
+          </div>
+        )}
 
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {!updatedAt && layanan.length === 0 && [0, 1, 2, 3, 4].map((i) => <Skeleton key={i} onDark className="h-56 rounded-3xl" />)}
@@ -69,7 +82,7 @@ export default function DisplayPage() {
             <p className="flex items-center gap-2 text-xs font-semibold tracking-[0.2em] text-blue-300"><Clock3 size={14} /> WAKTU SEKARANG</p>
             <Clock className="my-4" timeClass="text-6xl" dateClass="mt-2 text-sm text-slate-300" />
             <div className="space-y-1.5 border-t border-white/10 pt-4 text-sm text-slate-300">
-              <p className="flex items-center gap-2"><Megaphone size={15} /> Urutan umum: <b className="text-white">{now ? `#${now.serving_urutan} · ${now.serving}` : "—"}</b></p>
+              {global && <p className="flex items-center gap-2"><Megaphone size={15} /> Urutan umum: <b className="text-white">{now ? `#${now.serving_urutan} · ${now.serving}` : "—"}</b></p>}
               <p className="flex items-center gap-2"><Users size={15} /> {layanan.reduce((n, l) => n + l.waiting, 0)} total menunggu</p>
             </div>
           </div>

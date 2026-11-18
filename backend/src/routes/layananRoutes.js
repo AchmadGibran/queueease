@@ -21,7 +21,8 @@ router.get(
                ORDER BY c.called_at DESC LIMIT 1) AS serving_urutan,
              (SELECT c.called_at FROM antrean c
                WHERE c.layanan_id = l.id AND c.service_date = ${TODAY} AND c.status = 'called'
-               ORDER BY c.called_at DESC LIMIT 1) AS serving_at
+               ORDER BY c.called_at DESC LIMIT 1) AS serving_at,
+             COALESCE((SELECT nilai FROM pengaturan WHERE kunci = 'mode_antrean'), 'global') AS mode
       FROM layanan l
       LEFT JOIN antrean a ON a.layanan_id = l.id AND a.service_date = ${TODAY}
       GROUP BY l.id
@@ -32,6 +33,22 @@ router.get(
         serving: serving_number ? ticketCode(r.kode, serving_number) : null,
       }))
     );
+  })
+);
+
+// PATCH /api/layanan/mode { mode: "global" | "loket" } – petugas mengganti mode antrean seluruh sistem
+router.patch(
+  "/mode",
+  requireAuth,
+  requireRole("petugas"),
+  asyncHandler(async (req, res) => {
+    const { mode } = req.body;
+    if (!["global", "loket"].includes(mode)) throw new HttpError(400, "Mode harus 'global' atau 'loket'.");
+    await pool.query(
+      "INSERT INTO pengaturan (kunci, nilai) VALUES ('mode_antrean', $1) ON CONFLICT (kunci) DO UPDATE SET nilai = EXCLUDED.nilai",
+      [mode]
+    );
+    res.json({ mode });
   })
 );
 

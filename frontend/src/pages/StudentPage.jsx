@@ -9,7 +9,7 @@ import Notice from "../components/Notice";
 import Skeleton from "../components/Skeleton";
 import { useCachedState } from "../utils/cache";
 import StatusBadge from "../components/StatusBadge";
-import { LayananIcon, formatDate, formatTime, layananStyle, nowServing } from "../utils/layanan";
+import { LayananIcon, formatDate, formatTime, layananStyle, nowServing, queueMode } from "../utils/layanan";
 import { askNotification, canAskNotification, notify } from "../utils/notify";
 
 const isActive = (t) => t.status === "waiting" || t.status === "called";
@@ -58,6 +58,7 @@ export default function StudentPage() {
   const totalWaiting = layanan.reduce((n, l) => n + l.waiting, 0);
   const featured = activeTickets.find((t) => t.status === "called") || activeTickets[0];
   const now = nowServing(layanan);
+  const global = queueMode(layanan) === "global";
   const firstName = user.nama.split(" ")[0];
 
   const submit = async (e) => {
@@ -104,9 +105,7 @@ export default function StudentPage() {
           </div>
           <div className="flex flex-wrap items-center gap-3 text-sm">
             <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-2"><Users size={16} /> {totalWaiting} orang menunggu</span>
-            <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-2">
-  <Megaphone size={16} /> Urutan umum sekarang: {now ? `#${now.serving_urutan} (${now.serving})` : "belum ada"}
-</span>
+            {global && <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-2"><Megaphone size={16} /> Urutan umum sekarang: {now ? `#${now.serving_urutan} (${now.serving})` : "belum ada"}</span>}
             <LiveIndicator light updatedAt={updatedAt} onRefresh={refresh} />
           </div>
         </div>
@@ -119,7 +118,7 @@ export default function StudentPage() {
                 <p className="text-4xl font-black tracking-wider text-blue-700">{featured.ticket}</p>
                 <StatusBadge status={featured.status} />
               </div>
-              <p className="mt-1 text-xs font-semibold text-slate-500">Urutan umum #{featured.urutan}</p>
+              {global && <p className="mt-1 text-xs font-semibold text-slate-500">Urutan umum #{featured.urutan}</p>}
               <p className="mt-2 flex items-center gap-2 text-sm text-slate-600">
                 {featured.status === "called"
                   ? <><Megaphone size={15} className="text-blue-600" /> Giliran Anda — silakan menuju loket!</>
@@ -173,7 +172,7 @@ export default function StudentPage() {
                   <StatusBadge status={t.status} />
                 </div>
                 <p className="mt-3 text-5xl font-black tracking-wider text-blue-700">{t.ticket}</p>
-                <p className="mb-3 mt-1 text-xs font-semibold text-slate-500">Urutan umum #{t.urutan}</p>
+                <p className="mb-3 mt-1 text-xs font-semibold text-slate-500">{global ? `Urutan umum #${t.urutan}` : "Antrean khusus layanan ini"}</p>
                 {called ? (
                   <p className="flex items-center gap-2 text-sm font-semibold text-blue-700"><Bell size={16} className="animate-pulse" /> Giliran Anda! Segera menuju loket {t.layanan_nama}.</p>
                 ) : (

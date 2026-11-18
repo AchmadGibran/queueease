@@ -75,8 +75,16 @@ UPDATE public.antrean a SET urutan = s.rn
 ALTER TABLE public.antrean ALTER COLUMN urutan SET NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS uq_antrean_urutan ON public.antrean (service_date, urutan);
 
+-- Pengaturan sistem. mode_antrean: 'global' = satu petugas (urutan umum) | 'loket' = banyak loket (per layanan)
+CREATE TABLE IF NOT EXISTS public.pengaturan (
+    kunci VARCHAR(50) PRIMARY KEY,
+    nilai VARCHAR(100) NOT NULL
+);
+INSERT INTO public.pengaturan (kunci, nilai) VALUES ('mode_antrean', 'global') ON CONFLICT (kunci) DO NOTHING;
+
 -- 4. Keamanan Supabase: aktifkan RLS tanpa policy agar tabel TIDAK bisa dibaca lewat anon key / REST API Supabase.
 --    Backend Express tetap bisa mengakses karena memakai koneksi database langsung.
 ALTER TABLE public.users    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.layanan  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.antrean  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.pengaturan ENABLE ROW LEVEL SECURITY;

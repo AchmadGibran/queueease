@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { Activity, CheckCircle2, Clock3, Download, ListOrdered, Lock, Megaphone, Search, Timer, Unlock, Users } from "lucide-react";
-import { callNext, callTicket, completeQueue, errorMessage, getLayanan, getQueue, getStats, recallTicket, setLayananAktif, skipQueue } from "../services/api";
+import { callNext, callTicket, completeQueue, errorMessage, getLayanan, getQueue, getStats, recallTicket, setLayananAktif, setMode, skipQueue } from "../services/api";
 import usePolling from "../hooks/usePolling";
 import LiveIndicator from "../components/LiveIndicator";
 import Notice from "../components/Notice";
@@ -8,7 +8,7 @@ import QueueTable from "../components/QueueTable";
 import Skeleton from "../components/Skeleton";
 import { useCachedState } from "../utils/cache";
 import StatCard from "../components/StatCard";
-import { LayananIcon, layananStyle } from "../utils/layanan";
+import { LayananIcon, layananStyle, queueMode } from "../utils/layanan";
 
 const STATUS_FILTERS = [["aktif", "Aktif"], ["all", "Semua"], ["done", "Selesai"], ["closed", "Dilewati/Batal"]];
 const ORDER = { called: 0, waiting: 1, done: 2, skipped: 3, cancelled: 4 };
@@ -52,6 +52,7 @@ export default function AdminPage() {
     run(...map[action]);
   };
 
+  const mode = queueMode(layanan);
   const nextGlobal = rows.find((r) => r.status === "waiting"); // rows sudah terurut menurut urutan umum
   const servingOf = useMemo(() => Object.fromEntries(rows.filter((r) => r.status === "called").map((r) => [r.layanan_id, r])), [rows]);
 
@@ -95,7 +96,24 @@ export default function AdminPage() {
         <StatCard label="Rata-rata Layanan" value={`${stats.avg_service_min ?? 0} mnt`} icon={Timer} tone="slate" />
       </div>
 
+      {/* Mode antrean seluruh sistem */}
+      <section className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:flex-row md:items-center md:justify-between">
+        <div>
+          <p className="text-xs font-bold tracking-[0.18em] text-slate-500">MODE ANTREAN</p>
+          <p className="mt-1 text-sm text-slate-600">
+            {mode === "global" ? "Satu petugas: dipanggil menurut urutan umum (siapa datang dulu, dilayani dulu)." : "Banyak loket: tiap layanan dipanggil oleh loketnya sendiri; posisi dihitung per layanan."}
+          </p>
+        </div>
+        <div className="flex rounded-xl bg-slate-100 p-1">
+          {[["global", "Satu petugas"], ["loket", "Banyak loket"]].map(([k, t]) => (
+            <button key={k} disabled={busy} onClick={() => mode !== k && run(() => setMode(k), () => `Mode diubah ke ${t}.`)}
+              className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${mode === k ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>{t}</button>
+          ))}
+        </div>
+      </section>
+
       {/* Mode satu petugas: panggil menurut urutan umum semua layanan */}
+      {mode === "global" && (
       <section className="flex flex-col gap-4 rounded-2xl border border-blue-200 bg-white p-5 shadow-sm md:flex-row md:items-center md:justify-between">
         <div>
           <p className="flex items-center gap-2 text-xs font-bold tracking-[0.18em] text-blue-600"><ListOrdered size={14} /> URUTAN UMUM (MODE SATU PETUGAS)</p>
@@ -109,10 +127,11 @@ export default function AdminPage() {
           <Megaphone size={18} /> Panggil Berikutnya
         </button>
       </section>
+      )}
 
       {/* Satu kartu per layanan = satu loket */}
       <section>
-        <h3 className="mb-3 flex items-center gap-2 text-sm font-bold tracking-wide text-slate-500"><Activity size={16} /> LOKET PER LAYANAN <span className="font-medium normal-case tracking-normal">(untuk mode banyak petugas)</span></h3>
+        <h3 className="mb-3 flex items-center gap-2 text-sm font-bold tracking-wide text-slate-500"><Activity size={16} /> LOKET PER LAYANAN <span className="font-medium normal-case tracking-normal">{mode === "loket" ? "(mode banyak loket)" : "(mode satu petugas: tombol panggil ada di atas)"}</span></h3>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {!loaded && layanan.length === 0 && [0, 1, 2].map((i) => <Skeleton key={i} className="h-60 rounded-2xl" />)}
           {layanan.map((l) => {
@@ -139,10 +158,10 @@ export default function AdminPage() {
                   )}
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => run(() => callNext(l.id), (t) => `Nomor ${t.ticket} (${t.nama}) dipanggil.`)} disabled={busy || l.waiting === 0}
+                  {mode === "loket" && <button onClick={() => run(() => callNext(l.id), (t) => `Nomor ${t.ticket} (${t.nama}) dipanggil.`)} disabled={busy || l.waiting === 0}
                     className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-70 disabled:saturate-50">
                     <Megaphone size={16} /> Panggil {l.kode}
-                  </button>
+                  </button>}
                   <button onClick={() => run(() => setLayananAktif(l.id, !l.aktif), (r) => `Layanan ${r.nama} ${r.aktif ? "dibuka" : "ditutup"}.`)} disabled={busy}
                     title={l.aktif ? "Tutup pengambilan antrean baru" : "Buka pengambilan antrean"}
                     className={`rounded-xl border px-3 py-2.5 transition disabled:opacity-50 ${l.aktif ? "border-slate-200 text-slate-500 hover:bg-slate-50" : "border-red-200 bg-red-50 text-red-600 hover:bg-red-100"}`}>
@@ -184,7 +203,7 @@ export default function AdminPage() {
           </div>
         </div>
         {loaded || rows.length ? (
-          <QueueTable rows={visible} onAction={onAction} busy={busy} />
+          <QueueTable rows={visible} onAction={onAction} busy={busy} showUrutan={mode === "global"} />
         ) : (
           <div className="space-y-2 p-6">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-12" />)}</div>
         )}

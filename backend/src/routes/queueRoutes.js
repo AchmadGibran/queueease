@@ -1,7 +1,7 @@
 import { Router } from "express";
 import pool, { withTransaction } from "../config/db.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
-import { asyncHandler, HttpError, parseId, TODAY, ticketCode } from "../utils/helpers.js";
+import { asyncHandler, getMode, HttpError, parseId, TODAY, ticketCode } from "../utils/helpers.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -23,12 +23,14 @@ router.get(
   "/me",
   requireRole("mahasiswa"),
   asyncHandler(async (req, res) => {
+    // Posisi tunggu mengikuti mode: urutan umum (satu petugas) atau antrean per layanan (banyak loket)
+    const before = (await getMode(pool)) === "loket" ? "b.layanan_id = a.layanan_id AND b.queue_number < a.queue_number" : "b.urutan < a.urutan";
     const { rows } = await pool.query(
       `SELECT ${COLS},
          (SELECT COUNT(*) FROM antrean b WHERE b.service_date = a.service_date
-            AND b.status = 'waiting' AND b.urutan < a.urutan)::int AS ahead,
+            AND b.status = 'waiting' AND ${before})::int AS ahead,
          (SELECT COALESCE(SUM(bl.estimasi_menit), 0) FROM antrean b JOIN layanan bl ON bl.id = b.layanan_id
-          WHERE b.service_date = a.service_date AND b.status = 'waiting' AND b.urutan < a.urutan)::int AS ahead_menit
+          WHERE b.service_date = a.service_date AND b.status = 'waiting' AND ${before})::int AS ahead_menit
        ${FROM} WHERE a.user_id = $1 AND a.service_date = ${TODAY} ORDER BY a.created_at DESC`,
       [req.user.id]
     );
@@ -165,7 +167,7 @@ router.get(
 
 // Memanggil satu tiket (id) atau tiket menunggu paling awal (id = null) pada sebuah layanan.
 // Tiket yang sedang dipanggil di layanan yang sama otomatis dianggap selesai.
-const callTicket = (layananId, id) =>
+const callTicket = (layananId, id, finishAll = false) =>
   withTransaction(async (db) => {
     const { rows: [l] } = await db.query("SELECT id FROM layanan WHERE id = $1 FOR UPDATE", [layananId]);
     if (!l) throw new HttpError(404, "Layanan tidak ditemukan.");
@@ -179,8 +181,8 @@ const callTicket = (layananId, id) =>
 
     await db.query(
       `UPDATE antrean SET status = 'done', finished_at = NOW()
-       WHERE layanan_id = $1 AND service_date = ${TODAY} AND status = 'called'`,
-      [layananId]
+       WHERE service_date = ${TODAY} AND status = 'called' AND ($2::boolean OR layanan_id = $1)`,
+      [layananId, finishAll]
     );
     await db.query("UPDATE antrean SET status = 'called', called_at = NOW() WHERE id = $1", [target.id]);
     return fetchOne(db, target.id);
@@ -204,9 +206,15 @@ const callNextGlobal = () =>
 router.patch(
   "/call-next",
   requireRole("petugas"),
-  asyncHandler(async (req, res) =>
-    res.json(req.body.layanan_id ? await callTicket(parseId(req.body.layanan_id, "Layanan"), null) : await callNextGlobal())
-  )
+  asyncHandler(async (req, res) => {
+    const mode = await getMode(pool);
+    if (req.body.layanan_id) {
+      if (mode !== "loket") throw new HttpError(409, "Mode saat ini: Satu petugas (urutan umum). Ubah ke mode Banyak loket untuk memanggil per layanan.");
+      return res.json(await callTicket(parseId(req.body.layanan_id, "Layanan"), null));
+    }
+    if (mode !== "global") throw new HttpError(409, "Mode saat ini: Banyak loket. Panggil dari kartu layanan, atau ubah ke mode Satu petugas.");
+    res.json(await callNextGlobal());
+  })
 );
 
 // PATCH /api/queue/:id/call – panggil tiket tertentu (mis. mahasiswa yang diprioritaskan)
@@ -217,7 +225,7 @@ router.patch(
     const id = parseId(req.params.id, "ID antrean");
     const { rows: [t] } = await pool.query(`SELECT layanan_id FROM antrean WHERE id = $1 AND service_date = ${TODAY}`, [id]);
     if (!t) throw new HttpError(404, "Antrean tidak ditemukan.");
-    res.json(await callTicket(t.layanan_id, id));
+    res.json(await callTicket(t.layanan_id, id, (await getMode(pool)) === "global"));
   })
 );
 

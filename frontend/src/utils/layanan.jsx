@@ -27,3 +27,6 @@ export const formatDate = (iso) =>
 // Tiket yang paling baru dipanggil di semua layanan (acuan "urutan umum sekarang")
 export const nowServing = (list) =>
   list.filter((l) => l.serving).sort((a, b) => new Date(b.serving_at) - new Date(a.serving_at))[0] || null;
+
+// Mode antrean sistem: "global" (satu petugas, urutan umum) atau "loket" (banyak loket)
+export const queueMode = (list) => list[0]?.mode || "global";

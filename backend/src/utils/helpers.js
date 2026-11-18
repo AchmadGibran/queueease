@@ -8,6 +8,10 @@ if (!/^[A-Za-z_]+(\/[A-Za-z_+\-0-9]+)*$/.test(TZ)) {
 }
 export const TODAY = `(NOW() AT TIME ZONE '${TZ}')::date`;
 
+// Mode antrean: "global" (satu petugas, urutan umum) atau "loket" (banyak loket, per layanan)
+export const getMode = async (db) =>
+  (await db.query("SELECT nilai FROM pengaturan WHERE kunci = 'mode_antrean'")).rows[0]?.nilai === "loket" ? "loket" : "global";
+
 export class HttpError extends Error {
   constructor(status, message) {
     super(message);
