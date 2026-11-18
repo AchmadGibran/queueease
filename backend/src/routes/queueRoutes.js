@@ -1,10 +1,11 @@
 import { Router } from "express";
 import pool, { withTransaction } from "../config/db.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
+import { broadcastOnWrite } from "../utils/events.js";
 import { asyncHandler, getMode, HttpError, parseId, TODAY, ticketCode } from "../utils/helpers.js";
 
 const router = Router();
-router.use(requireAuth);
+router.use(requireAuth, broadcastOnWrite);
 
 const MAKS_TIKET_AKTIF = 2; // satu mahasiswa tidak bisa berada di banyak loket sekaligus
 

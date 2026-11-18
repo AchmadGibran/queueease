@@ -1,9 +1,11 @@
 import { Router } from "express";
 import pool from "../config/db.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
+import { broadcastOnWrite } from "../utils/events.js";
 import { asyncHandler, HttpError, parseId, TODAY, ticketCode } from "../utils/helpers.js";
 
 const router = Router();
+router.use(broadcastOnWrite);
 
 // GET /api/layanan – papan antrean publik (tanpa data pribadi): nomor yang sedang dilayani & jumlah menunggu
 router.get(

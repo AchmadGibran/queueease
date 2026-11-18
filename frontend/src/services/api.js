@@ -2,15 +2,17 @@ import axios from "axios";
 
 export const TOKEN_KEY = "queueease_token";
 
+export const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "http://localhost:5000/api",
+  baseURL: API_BASE,
   headers: { "Content-Type": "application/json" },
   timeout: 15000,
 });
 
 api.interceptors.request.use((config) => {
   try {
-    const token = localStorage.getItem(TOKEN_KEY);
+    const token = sessionStorage.getItem(TOKEN_KEY);
     if (token) config.headers.Authorization = `Bearer ${token}`;
   } catch { /* abaikan */ }
   return config;

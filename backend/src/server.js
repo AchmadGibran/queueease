@@ -6,6 +6,7 @@ import authRoutes from "./routes/authRoutes.js";
 import layananRoutes from "./routes/layananRoutes.js";
 import queueRoutes from "./routes/queueRoutes.js";
 import { HttpError } from "./utils/helpers.js";
+import { sseHandler } from "./utils/events.js";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -24,6 +25,7 @@ app.get("/api/health", async (_req, res) => {
   }
 });
 
+app.get("/api/events", sseHandler);
 app.use("/api/auth", authRoutes);
 app.use("/api/layanan", layananRoutes);
 app.use("/api/queue", queueRoutes);

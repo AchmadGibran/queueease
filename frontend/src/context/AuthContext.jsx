@@ -6,9 +6,9 @@ const AuthContext = createContext(null);
 export const useAuth = () => useContext(AuthContext);
 
 const USER_KEY = "queueease_user";
-const read = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
-const write = (k, v) => { try { localStorage.setItem(k, v); } catch { /* abaikan */ } };
-const remove = (k) => { try { localStorage.removeItem(k); } catch { /* abaikan */ } };
+const read = (k) => { try { return sessionStorage.getItem(k); } catch { return null; } };
+const write = (k, v) => { try { sessionStorage.setItem(k, v); } catch { /* abaikan */ } };
+const remove = (k) => { try { sessionStorage.removeItem(k); } catch { /* abaikan */ } };
 
 const store = {
   token: () => read(api.TOKEN_KEY),
