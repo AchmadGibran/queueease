@@ -15,7 +15,13 @@ router.get(
              COUNT(a.id) FILTER (WHERE a.status = 'done')::int AS done,
              (SELECT c.queue_number FROM antrean c
                WHERE c.layanan_id = l.id AND c.service_date = ${TODAY} AND c.status = 'called'
-               ORDER BY c.called_at DESC LIMIT 1) AS serving_number
+               ORDER BY c.called_at DESC LIMIT 1) AS serving_number,
+             (SELECT c.urutan FROM antrean c
+               WHERE c.layanan_id = l.id AND c.service_date = ${TODAY} AND c.status = 'called'
+               ORDER BY c.called_at DESC LIMIT 1) AS serving_urutan,
+             (SELECT c.called_at FROM antrean c
+               WHERE c.layanan_id = l.id AND c.service_date = ${TODAY} AND c.status = 'called'
+               ORDER BY c.called_at DESC LIMIT 1) AS serving_at
       FROM layanan l
       LEFT JOIN antrean a ON a.layanan_id = l.id AND a.service_date = ${TODAY}
       GROUP BY l.id

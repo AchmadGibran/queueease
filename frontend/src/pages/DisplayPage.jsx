@@ -4,12 +4,14 @@ import { ArrowLeft, Clock3, Lock, Megaphone, Ticket, Users } from "lucide-react"
 import { getLayanan } from "../services/api";
 import usePolling from "../hooks/usePolling";
 import Clock from "../components/Clock";
+import Skeleton from "../components/Skeleton";
+import { useCachedState } from "../utils/cache";
 import LiveIndicator from "../components/LiveIndicator";
-import { LayananIcon } from "../utils/layanan";
+import { LayananIcon, nowServing } from "../utils/layanan";
 
 // Layar publik untuk TV/monitor di area pelayanan: tanpa login, tanpa data pribadi
 export default function DisplayPage() {
-  const [layanan, setLayanan] = useState([]);
+  const [layanan, setLayanan] = useCachedState("layanan", []);
   const [updatedAt, setUpdatedAt] = useState(null);
   const [error, setError] = useState(false);
 
@@ -25,6 +27,8 @@ export default function DisplayPage() {
     el.classList.remove("dark");
     return () => { if (was) el.classList.add("dark"); };
   }, []);
+
+  const now = nowServing(layanan);
 
   return (
     <div className="min-h-screen bg-slate-900 px-6 py-8 text-white">
@@ -46,6 +50,7 @@ export default function DisplayPage() {
         </div>
 
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {!updatedAt && layanan.length === 0 && [0, 1, 2, 3, 4].map((i) => <Skeleton key={i} onDark className="h-56 rounded-3xl" />)}
           {layanan.map((l) => (
             <div key={l.id} className="rounded-3xl border border-white/10 bg-white/5 p-6">
               <div className="flex items-center gap-3">
@@ -63,7 +68,10 @@ export default function DisplayPage() {
           <div className="flex flex-col justify-between rounded-3xl border border-blue-400/20 bg-gradient-to-br from-blue-600/30 to-indigo-600/20 p-6">
             <p className="flex items-center gap-2 text-xs font-semibold tracking-[0.2em] text-blue-300"><Clock3 size={14} /> WAKTU SEKARANG</p>
             <Clock className="my-4" timeClass="text-6xl" dateClass="mt-2 text-sm text-slate-300" />
-            <p className="flex items-center gap-2 border-t border-white/10 pt-4 text-sm text-slate-300"><Users size={15} /> {layanan.reduce((n, l) => n + l.waiting, 0)} total menunggu</p>
+            <div className="space-y-1.5 border-t border-white/10 pt-4 text-sm text-slate-300">
+              <p className="flex items-center gap-2"><Megaphone size={15} /> Urutan umum: <b className="text-white">{now ? `#${now.serving_urutan} · ${now.serving}` : "—"}</b></p>
+              <p className="flex items-center gap-2"><Users size={15} /> {layanan.reduce((n, l) => n + l.waiting, 0)} total menunggu</p>
+            </div>
           </div>
         </div>
       </div>

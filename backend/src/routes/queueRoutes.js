@@ -8,7 +8,7 @@ router.use(requireAuth);
 
 const MAKS_TIKET_AKTIF = 2; // satu mahasiswa tidak bisa berada di banyak loket sekaligus
 
-const COLS = `a.id, a.service_date, a.queue_number, a.status, a.catatan, a.created_at, a.called_at, a.finished_at,
+const COLS = `a.id, a.service_date, a.queue_number, a.urutan, a.status, a.catatan, a.created_at, a.called_at, a.finished_at,
   a.nama, a.nim, l.id AS layanan_id, l.kode, l.nama AS layanan_nama, l.ikon, l.estimasi_menit`;
 const FROM = `FROM antrean a JOIN layanan l ON l.id = a.layanan_id`;
 const serialize = (row) => ({ ...row, ticket: ticketCode(row.kode, row.queue_number) });
@@ -25,12 +25,14 @@ router.get(
   asyncHandler(async (req, res) => {
     const { rows } = await pool.query(
       `SELECT ${COLS},
-         (SELECT COUNT(*) FROM antrean b WHERE b.layanan_id = a.layanan_id AND b.service_date = a.service_date
-            AND b.status = 'waiting' AND b.queue_number < a.queue_number)::int AS ahead
+         (SELECT COUNT(*) FROM antrean b WHERE b.service_date = a.service_date
+            AND b.status = 'waiting' AND b.urutan < a.urutan)::int AS ahead,
+         (SELECT COALESCE(SUM(bl.estimasi_menit), 0) FROM antrean b JOIN layanan bl ON bl.id = b.layanan_id
+          WHERE b.service_date = a.service_date AND b.status = 'waiting' AND b.urutan < a.urutan)::int AS ahead_menit
        ${FROM} WHERE a.user_id = $1 AND a.service_date = ${TODAY} ORDER BY a.created_at DESC`,
       [req.user.id]
     );
-    res.json(rows.map((r) => ({ ...serialize(r), eta_menit: r.status === "waiting" ? (r.ahead + 1) * r.estimasi_menit : 0 })));
+    res.json(rows.map((r) => ({ ...serialize(r), eta_menit: r.status === "waiting" ? r.ahead_menit + r.estimasi_menit : 0 })));
   })
 );
 
@@ -58,6 +60,8 @@ router.post(
 
     try {
       const ticket = await withTransaction(async (db) => {
+        // Satu kunci per hari untuk penomoran urutan umum (semua layanan harus berurutan tanpa celah/ganda)
+        await db.query("SELECT pg_advisory_xact_lock(hashtext('antrean-urutan'))");
         // Kunci baris layanan → pengambilan nomor per layanan berjalan berurutan (tanpa nomor ganda)
         const { rows: [l] } = await db.query(
           "SELECT id, nama, aktif, batas_harian, maks_per_mahasiswa FROM layanan WHERE id = $1 FOR UPDATE",
@@ -88,10 +92,13 @@ router.post(
         if (active.n >= MAKS_TIKET_AKTIF)
           throw new HttpError(409, `Anda masih memiliki ${active.n} antrean aktif. Selesaikan atau batalkan dahulu.`);
 
+        const { rows: [g] } = await db.query(
+          `SELECT COALESCE(MAX(urutan), 0)::int AS last FROM antrean WHERE service_date = ${TODAY}`
+        );
         const { rows: [created] } = await db.query(
-          `INSERT INTO antrean (service_date, layanan_id, user_id, queue_number, nama, nim, catatan)
-           VALUES (${TODAY}, $1, $2, $3, $4, $5, $6) RETURNING id`,
-          [l.id, req.user.id, c.last + 1, u.nama, u.nim, catatan]
+          `INSERT INTO antrean (service_date, layanan_id, user_id, queue_number, urutan, nama, nim, catatan)
+           VALUES (${TODAY}, $1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+          [l.id, req.user.id, c.last + 1, g.last + 1, u.nama, u.nim, catatan]
         );
         return fetchOne(db, created.id);
       });
@@ -130,7 +137,7 @@ router.get(
     let filter = "";
     if (req.query.layanan_id) { params.push(parseId(req.query.layanan_id, "Layanan")); filter = "AND a.layanan_id = $1"; }
     const { rows } = await pool.query(
-      `SELECT ${COLS} ${FROM} WHERE a.service_date = ${TODAY} ${filter} ORDER BY l.id, a.queue_number`,
+      `SELECT ${COLS} ${FROM} WHERE a.service_date = ${TODAY} ${filter} ORDER BY a.urutan`,
       params
     );
     res.json(rows.map(serialize));
@@ -179,11 +186,27 @@ const callTicket = (layananId, id) =>
     return fetchOne(db, target.id);
   });
 
-// PATCH /api/queue/call-next { layanan_id }
+// Mode SATU PETUGAS: panggil tiket menunggu dengan urutan umum terkecil (semua layanan, FIFO).
+// Tiket yang sedang dipanggil otomatis dianggap selesai.
+const callNextGlobal = () =>
+  withTransaction(async (db) => {
+    await db.query("SELECT pg_advisory_xact_lock(hashtext('antrean-panggil'))");
+    const { rows: [target] } = await db.query(
+      `SELECT id FROM antrean WHERE service_date = ${TODAY} AND status = 'waiting' ORDER BY urutan LIMIT 1 FOR UPDATE`
+    );
+    if (!target) throw new HttpError(404, "Tidak ada antrean yang menunggu.");
+    await db.query(`UPDATE antrean SET status = 'done', finished_at = NOW() WHERE service_date = ${TODAY} AND status = 'called'`);
+    await db.query("UPDATE antrean SET status = 'called', called_at = NOW() WHERE id = $1", [target.id]);
+    return fetchOne(db, target.id);
+  });
+
+// PATCH /api/queue/call-next  → tanpa layanan_id: urutan umum (satu petugas); dengan { layanan_id }: khusus satu layanan (banyak loket)
 router.patch(
   "/call-next",
   requireRole("petugas"),
-  asyncHandler(async (req, res) => res.json(await callTicket(parseId(req.body.layanan_id, "Layanan"), null)))
+  asyncHandler(async (req, res) =>
+    res.json(req.body.layanan_id ? await callTicket(parseId(req.body.layanan_id, "Layanan"), null) : await callNextGlobal())
+  )
 );
 
 // PATCH /api/queue/:id/call – panggil tiket tertentu (mis. mahasiswa yang diprioritaskan)

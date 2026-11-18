@@ -44,7 +44,8 @@ CREATE TABLE IF NOT EXISTS public.antrean (
     service_date DATE NOT NULL DEFAULT CURRENT_DATE,
     layanan_id SMALLINT NOT NULL REFERENCES public.layanan(id),
     user_id BIGINT NOT NULL REFERENCES public.users(id),
-    queue_number INTEGER NOT NULL,
+    queue_number INTEGER NOT NULL,   -- nomor per layanan (KA-001)
+    urutan INTEGER NOT NULL,         -- urutan umum semua layanan; acuan pemanggilan
     nama VARCHAR(100) NOT NULL,      -- salinan nama & NIM saat mengambil antrean
     nim VARCHAR(20) NOT NULL,
     catatan VARCHAR(200) NOT NULL DEFAULT '',
@@ -65,6 +66,14 @@ CREATE INDEX IF NOT EXISTS idx_antrean_layanan_status
     ON public.antrean (service_date, layanan_id, status, queue_number);
 CREATE INDEX IF NOT EXISTS idx_antrean_user
     ON public.antrean (user_id, service_date DESC);
+
+-- Migrasi untuk database lama (tidak berpengaruh pada database baru)
+ALTER TABLE public.antrean ADD COLUMN IF NOT EXISTS urutan INTEGER;
+UPDATE public.antrean a SET urutan = s.rn
+  FROM (SELECT id, ROW_NUMBER() OVER (PARTITION BY service_date ORDER BY created_at, id) AS rn FROM public.antrean) s
+  WHERE a.id = s.id AND a.urutan IS NULL;
+ALTER TABLE public.antrean ALTER COLUMN urutan SET NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_antrean_urutan ON public.antrean (service_date, urutan);
 
 -- 4. Keamanan Supabase: aktifkan RLS tanpa policy agar tabel TIDAK bisa dibaca lewat anon key / REST API Supabase.
 --    Backend Express tetap bisa mengakses karena memakai koneksi database langsung.

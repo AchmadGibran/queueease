@@ -23,3 +23,7 @@ export const formatTime = (iso) =>
   iso ? new Date(iso).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) : "–";
 export const formatDate = (iso) =>
   new Date(iso).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
+
+// Tiket yang paling baru dipanggil di semua layanan (acuan "urutan umum sekarang")
+export const nowServing = (list) =>
+  list.filter((l) => l.serving).sort((a, b) => new Date(b.serving_at) - new Date(a.serving_at))[0] || null;

@@ -33,7 +33,7 @@ export default function QueueTable({ rows, onAction, busy = false }) {
         <tbody className="divide-y divide-slate-100">
           {rows.map((r) => (
             <tr key={r.id} className={r.status === "called" ? "bg-blue-50/50" : "hover:bg-slate-50/70"}>
-              <td className="px-5 py-3.5 text-base font-extrabold tracking-wide text-blue-700">{r.ticket}</td>
+              <td className="px-5 py-3.5 text-base font-extrabold tracking-wide text-blue-700">{r.ticket}<span className="block text-[11px] font-semibold tracking-normal text-slate-400">Urutan #{r.urutan}</span></td>
               <td className="px-5 py-3.5">
                 <p className="font-semibold text-slate-800">{r.nama}</p>
                 <p className="text-xs text-slate-500">{r.nim}{r.catatan ? ` · ${r.catatan}` : ""}</p>

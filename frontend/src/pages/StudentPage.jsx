@@ -6,17 +6,20 @@ import usePolling from "../hooks/usePolling";
 import LiveIndicator from "../components/LiveIndicator";
 import Clock from "../components/Clock";
 import Notice from "../components/Notice";
+import Skeleton from "../components/Skeleton";
+import { useCachedState } from "../utils/cache";
 import StatusBadge from "../components/StatusBadge";
-import { LayananIcon, formatDate, formatTime, layananStyle } from "../utils/layanan";
+import { LayananIcon, formatDate, formatTime, layananStyle, nowServing } from "../utils/layanan";
 import { askNotification, canAskNotification, notify } from "../utils/notify";
 
 const isActive = (t) => t.status === "waiting" || t.status === "called";
 
 export default function StudentPage() {
   const { user } = useAuth();
-  const [layanan, setLayanan] = useState([]);
-  const [mine, setMine] = useState([]);
-  const [history, setHistory] = useState([]);
+  const [layanan, setLayanan] = useCachedState("layanan", []);
+  const [mine, setMine] = useCachedState("mine", []);
+  const [history, setHistory] = useCachedState("riwayat", []);
+  const [loaded, setLoaded] = useState(false);
   const [selected, setSelected] = useState(null);
   const [catatan, setCatatan] = useState("");
   const [busy, setBusy] = useState(false);
@@ -25,7 +28,7 @@ export default function StudentPage() {
   const [askPerm, setAskPerm] = useState(canAskNotification());
   const seen = useRef(null); // id → "status|called_at" untuk mendeteksi giliran dipanggil
 
-  const loadHistory = useCallback(() => getMyHistory().then(setHistory).catch(() => {}), []);
+  const loadHistory = useCallback(() => getMyHistory().then(setHistory).catch(() => {}), [setHistory]);
 
   const refresh = useCallback(async () => {
     try {
@@ -37,22 +40,24 @@ export default function StudentPage() {
         });
       }
       seen.current = Object.fromEntries(m.map((t) => [t.id, `${t.status}|${t.called_at}`]));
-      setLayanan(l); setMine(m); setUpdatedAt(new Date());
+      setLayanan(l); setMine(m); setUpdatedAt(new Date()); setLoaded(true);
     } catch (err) {
       setNotice({ type: "error", text: errorMessage(err, "Gagal memuat data.") });
     }
-  }, []);
+  }, [setLayanan, setMine]);
   usePolling(refresh, 5000);
 
   // Riwayat hanya dimuat ulang saat status tiket berubah (hemat request)
   const signature = mine.map((t) => `${t.id}:${t.status}`).join(",");
   useEffect(() => { loadHistory(); }, [signature, loadHistory]);
 
+  const loading = !loaded && layanan.length === 0;
   const activeTickets = mine.filter(isActive);
   const takenIds = useMemo(() => new Set(mine.filter((t) => t.status !== "cancelled").map((t) => t.layanan_id)), [mine]);
   const activeLayananIds = new Set(activeTickets.map((t) => t.layanan_id));
   const totalWaiting = layanan.reduce((n, l) => n + l.waiting, 0);
   const featured = activeTickets.find((t) => t.status === "called") || activeTickets[0];
+  const now = nowServing(layanan);
   const firstName = user.nama.split(" ")[0];
 
   const submit = async (e) => {
@@ -99,6 +104,9 @@ export default function StudentPage() {
           </div>
           <div className="flex flex-wrap items-center gap-3 text-sm">
             <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-2"><Users size={16} /> {totalWaiting} orang menunggu</span>
+            <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-2">
+  <Megaphone size={16} /> Urutan umum sekarang: {now ? `#${now.serving_urutan} (${now.serving})` : "belum ada"}
+</span>
             <LiveIndicator light updatedAt={updatedAt} onRefresh={refresh} />
           </div>
         </div>
@@ -111,17 +119,21 @@ export default function StudentPage() {
                 <p className="text-4xl font-black tracking-wider text-blue-700">{featured.ticket}</p>
                 <StatusBadge status={featured.status} />
               </div>
+              <p className="mt-1 text-xs font-semibold text-slate-500">Urutan umum #{featured.urutan}</p>
               <p className="mt-2 flex items-center gap-2 text-sm text-slate-600">
                 {featured.status === "called"
                   ? <><Megaphone size={15} className="text-blue-600" /> Giliran Anda — silakan menuju loket!</>
                   : <><Hourglass size={15} className="text-amber-600" /> {featured.ahead === 0 ? "Anda berikutnya!" : `${featured.ahead} antrean di depan`} · ± {featured.eta_menit} menit</>}
               </p>
             </div>
+          ) : !loaded ? (
+            <Skeleton onDark className="mb-4 h-24" />
           ) : (
             <p className="mb-4 rounded-xl bg-white/10 px-4 py-3 text-sm text-blue-50">Anda belum memiliki antrean aktif. Pilih layanan di bawah.</p>
           )}
           <p className="mb-3 flex items-center gap-2 text-xs font-bold tracking-[0.18em] text-blue-100"><Megaphone size={14} /> SEDANG DILAYANI</p>
           <ul className="space-y-2">
+            {loading && [0, 1, 2, 3, 4].map((i) => <li key={i}><Skeleton onDark className="h-14" /></li>)}
             {layanan.map((l) => (
               <li key={l.id} className={`flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 ${activeLayananIds.has(l.id) ? "bg-white/25 ring-1 ring-white/50" : "bg-white/10"}`}>
                 <span className="flex min-w-0 items-center gap-2.5 text-sm">
@@ -160,7 +172,8 @@ export default function StudentPage() {
                   </div>
                   <StatusBadge status={t.status} />
                 </div>
-                <p className="my-3 text-5xl font-black tracking-wider text-blue-700">{t.ticket}</p>
+                <p className="mt-3 text-5xl font-black tracking-wider text-blue-700">{t.ticket}</p>
+                <p className="mb-3 mt-1 text-xs font-semibold text-slate-500">Urutan umum #{t.urutan}</p>
                 {called ? (
                   <p className="flex items-center gap-2 text-sm font-semibold text-blue-700"><Bell size={16} className="animate-pulse" /> Giliran Anda! Segera menuju loket {t.layanan_nama}.</p>
                 ) : (
@@ -187,6 +200,7 @@ export default function StudentPage() {
         </div>
         <form onSubmit={submit} className="space-y-5">
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {loading && [0, 1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-28 rounded-2xl" />)}
             {layanan.map((l) => {
               const taken = takenIds.has(l.id);
               const disabled = !l.aktif || taken;

@@ -1,33 +1,43 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import * as api from "../services/api";
+import { cacheClear } from "../utils/cache";
 
 const AuthContext = createContext(null);
 export const useAuth = () => useContext(AuthContext);
 
+const USER_KEY = "queueease_user";
+const read = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
+const write = (k, v) => { try { localStorage.setItem(k, v); } catch { /* abaikan */ } };
+const remove = (k) => { try { localStorage.removeItem(k); } catch { /* abaikan */ } };
+
 const store = {
-  get: () => { try { return localStorage.getItem(api.TOKEN_KEY); } catch { return null; } },
-  set: (t) => { try { localStorage.setItem(api.TOKEN_KEY, t); } catch { /* abaikan */ } },
-  clear: () => { try { localStorage.removeItem(api.TOKEN_KEY); } catch { /* abaikan */ } },
+  token: () => read(api.TOKEN_KEY),
+  user: () => { try { return read(api.TOKEN_KEY) ? JSON.parse(read(USER_KEY)) : null; } catch { return null; } },
+  save: (token, user) => { write(api.TOKEN_KEY, token); write(USER_KEY, JSON.stringify(user)); },
+  clear: () => { remove(api.TOKEN_KEY); remove(USER_KEY); cacheClear(); },
 };
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(Boolean(store.get()));
+  // Pengguna terakhir dipakai dulu supaya halaman langsung tampil; keabsahan token dicek di latar belakang.
+  const [user, setUser] = useState(store.user);
+  const [loading, setLoading] = useState(Boolean(store.token()) && !user);
 
   const logout = useCallback(() => { store.clear(); setUser(null); }, []);
 
-  // Pulihkan sesi saat halaman dibuka ulang
   useEffect(() => {
-    if (!store.get()) return;
-    api.getMe().then(setUser).catch(() => store.clear()).finally(() => setLoading(false));
-  }, []);
+    if (!store.token()) return;
+    api.getMe()
+      .then((u) => { write(USER_KEY, JSON.stringify(u)); setUser(u); })
+      .catch((err) => { if (err.response?.status === 401) logout(); })
+      .finally(() => setLoading(false));
+  }, [logout]);
 
   useEffect(() => {
     window.addEventListener("qe:unauthorized", logout);
     return () => window.removeEventListener("qe:unauthorized", logout);
   }, [logout]);
 
-  const accept = useCallback(({ token, user: u }) => { store.set(token); setUser(u); return u; }, []);
+  const accept = useCallback(({ token, user: u }) => { cacheClear(); store.save(token, u); setUser(u); return u; }, []);
   const signIn = useCallback((payload) => api.login(payload).then(accept), [accept]);
   const signUp = useCallback((payload) => api.register(payload).then(accept), [accept]);
 
