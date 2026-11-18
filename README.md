@@ -1,135 +1,247 @@
-# QueueEase – Smart Queue v2 (Supabase Edition)
+<div align="center">
 
-React + Vite + Tailwind CSS, Express.js, dan PostgreSQL (Supabase).
+# 🛎️ QueueEase
 
-## Fitur
-- **Login berbasis role**: `mahasiswa` (daftar & login dengan **NIM**, unik) dan `petugas` (username). Halaman dilindungi di frontend (route guard) **dan** backend (JWT + cek role).
-- **Antrean per layanan** dengan kode sendiri: `K-001` Konsultasi, `S-001` Surat Aktif, `L-001` Legalisir, `C-001` Cuti, `U-001` Lainnya. Nomor berurut per layanan per hari.
-- **Aturan pembatasan** (diterapkan di backend):
-  - 1 mahasiswa = maks **1 nomor per layanan per hari** (berlaku untuk semua layanan, termasuk "Lainnya"; bisa diubah lewat kolom `layanan.maks_per_mahasiswa`). Nomor yang dibatalkan tidak dihitung, nomor yang dilewati (tidak hadir) tetap dihitung agar tidak disalahgunakan.
-  - Maks **2 antrean aktif sekaligus** (tidak bisa berada di banyak loket bersamaan).
-  - Kuota harian per layanan (`batas_harian`) dan tombol **buka/tutup layanan** oleh petugas.
-- **Mengapa antrean dipisah per layanan?** Di dunia nyata tiap layanan punya petugas/loket dan lama proses berbeda (surat 5 menit vs. cuti 15 menit). Antrean terpisah mencegah layanan cepat tertahan layanan lama, dan estimasi tunggu jadi akurat.
-- **Dashboard mahasiswa**: kartu biru berisi nomor Anda + posisi + estimasi, serta papan "Sedang dilayani" tiap layanan; pilih layanan bergambar; batalkan antrean; riwayat; **notifikasi bunyi + browser saat dipanggil**.
-- **Dashboard petugas**: statistik, loket per layanan (Panggil Berikutnya, buka/tutup), panggil tiket tertentu, panggil ulang, selesai, lewati, pencarian (nama/NIM/nomor), filter, ekspor **CSV**, rata-rata durasi layanan.
-- **Layar publik** `/display` untuk TV/monitor (tanpa login, tanpa data pribadi).
-- Keamanan: password di-hash (bcrypt), rate limiting login/daftar, RLS aktif di tabel Supabase, validasi input, transaksi database anti nomor ganda.
+**Sistem Antrean Digital Kampus**
 
-### Tentang "update 5 detik"
-Halaman tidak bisa "didorong" server secara otomatis, jadi browser **menanyakan data terbaru ke server tiap 5 detik** (polling). Jadi Anda tak perlu menekan refresh. Pada tab yang tidak terlihat, polling dijeda untuk menghemat server. Indikator "Live" di pojok halaman bisa diklik untuk memuat ulang seketika.
+Ambil nomor dari mana saja, pantau giliran secara langsung, dan datang saat dipanggil.
 
-## Memperbarui project lama (timpa folder)
-Cukup extract ZIP ini ke folder project Anda dan pilih **Replace/Timpa**. File `.env` dan `node_modules` Anda tidak ikut tertimpa. Lalu:
-1. **Database**: buka Supabase > SQL Editor, jalankan seluruh isi `database/schema.sql` (aman diulang; tabel `antrean` lama otomatis disimpan sebagai `antrean_lama`).
-2. **`backend/.env`**: tambahkan baris dari `backend/.env.example` — terutama **`JWT_SECRET`** (wajib, minimal 16 karakter acak), `CORS_ORIGIN`, `APP_TIMEZONE`, `ADMIN_*`.
-3. `cd backend` → `npm install` (ada paket baru: bcryptjs, jsonwebtoken, express-rate-limit) → `npm run seed:petugas` (membuat akun petugas; default `petugas` / `petugas123` — **ganti** lewat `ADMIN_PASSWORD`) → `npm run dev`.
-4. `cd frontend` → `npm install` → `npm run dev`.
+![React](https://img.shields.io/badge/React-18-2563eb?style=for-the-badge&logo=react&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-6-646cff?style=for-the-badge&logo=vite&logoColor=white)
+![Tailwind](https://img.shields.io/badge/Tailwind-3-0ea5e9?style=for-the-badge&logo=tailwindcss&logoColor=white)
+![Express](https://img.shields.io/badge/Express-4-1e293b?style=for-the-badge&logo=express&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/Supabase-PostgreSQL-16a34a?style=for-the-badge&logo=supabase&logoColor=white)
 
-## A. Persiapan
-1. Install Node.js LTS: https://nodejs.org/
-2. Siapkan akun Supabase: https://supabase.com/
-3. Siapkan Visual Studio Code: https://code.visualstudio.com/
+[Halaman](#-tampilan-halaman) · [Fitur](#️-fitur) · [Instalasi](#️-cara-menjalankan) · [API](#️-ringkasan-api) · [Tim](#-tim)
 
-**Tidak perlu menginstal PostgreSQL lokal atau pgAdmin.** Database PostgreSQL disediakan oleh Supabase.
+![Dashboard mahasiswa](gambar/mahasiswa-dashboard.png)
 
-## B. Buat project Supabase
-1. Login ke https://supabase.com/dashboard
-2. Klik **New project**.
-3. Pilih organisasi, isi nama project `queueease`, buat database password, dan pilih region yang sesuai (misalnya Singapore jika tersedia).
-4. Klik **Create new project** dan tunggu sampai project siap.
-5. Buka **SQL Editor** di menu sebelah kiri.
-6. Klik **New query**.
-7. Buka file `database/schema.sql` dari folder project, salin seluruh isinya ke SQL Editor.
-8. Klik **Run**.
-9. Buka **Table Editor** dan pastikan tabel `public.antrean` sudah muncul.
+</div>
 
-Simpan database password dengan aman. Jangan mengunggah password atau connection string ke GitHub.
+---
 
-## C. Ambil connection string Supabase
-1. Di dashboard project Supabase, klik **Connect** (atau buka pengaturan Database/Connection string jika tampilan dashboard berbeda).
-2. Pilih tab **Connection string**.
-3. Pilih mode **Session pooler** dan format **URI**. Session pooler cocok untuk koneksi aplikasi Node.js yang berjalan terus-menerus dari laptop; bila opsi ini tidak tersedia, ikuti opsi koneksi yang direkomendasikan dashboard Supabase.
-4. Salin URI yang ditampilkan. Jangan gunakan contoh URI di bawah sebagai alamat sungguhan.
+## 📸 Tampilan Halaman
 
-Bentuk URI biasanya seperti:
-`postgresql://postgres.PROJECT_REF:PASSWORD@HOST:5432/postgres`
+| Halaman | Alamat | Role | Fungsi |
+|---|---|---|---|
+| **Login & Daftar** | `/login` | Publik | Masuk sebagai mahasiswa (NIM) atau petugas (username) |
+| **Dashboard Mahasiswa** | `/mahasiswa` | Mahasiswa | Ambil nomor, pantau posisi, batalkan, riwayat |
+| **Dashboard Petugas** | `/petugas` | Petugas | Kelola loket, panggil, selesaikan, ekspor CSV |
+| **Layar Publik** | `/display` | Publik | Tampilan TV/monitor di ruang layanan |
 
-Jika password mengandung karakter khusus seperti `@`, `#`, `/`, atau `:`, gunakan URL-encoding pada password. Jangan mengubah host, username, port, atau nama database yang diberikan Supabase.
+### Login & Daftar
+Satu halaman untuk dua role. Mahasiswa mendaftar dengan **NIM** (unik), petugas masuk dengan username.
 
-## D. Konfigurasi backend
-1. Extract ZIP.
-2. Buka folder `queueease-supabase` di VS Code.
-3. Buka terminal: **Terminal > New Terminal**.
-4. Masuk ke backend:
-   - Jika terminal berada di folder utama: `cd backend`
-5. Install package:
-   `npm install`
-6. Salin `.env.example` menjadi `.env`.
-   Windows CMD: `copy .env.example .env`
-   PowerShell: `Copy-Item .env.example .env`
-7. Buka `backend/.env`, lalu ganti `DATABASE_URL` dengan URI asli dari Supabase:
+<p align="center"><img src="gambar/login.png" alt="Halaman login" width="85%"></p>
 
-`PORT=5000`
-`DATABASE_URL=postgresql://...URI_ASLI_DARI_SUPABASE...`
+### Mahasiswa
+Kartu biru menampilkan nomor Anda, posisi antrean, estimasi tunggu, dan papan "Sedang dilayani" tiap layanan. Di bawahnya, pilih layanan dan ambil nomor.
 
-Jangan beri tanda kutip. Jangan membagikan file `.env` atau memasukkannya ke repository publik.
+<p align="center">
+  <img src="gambar/mahasiswa-dashboard.png" alt="Dashboard mahasiswa" width="48%">
+  <img src="gambar/mahasiswa-ambil-antrean.png" alt="Ambil nomor antrean" width="48%">
+</p>
 
-8. Jalankan backend:
-   `npm run dev`
+### Petugas
+Satu kartu loket per layanan, statistik hari ini, dan tabel manajemen antrean dengan pencarian, filter, serta aksi panggil, ulang, selesai, dan lewati.
 
-Backend seharusnya menampilkan:
-`QueueEase API berjalan di http://localhost:5000`
+<p align="center">
+  <img src="gambar/petugas-dashboard.png" alt="Dashboard petugas" width="48%">
+  <img src="gambar/petugas-tabel.png" alt="Tabel antrean petugas" width="48%">
+</p>
 
-9. Tes koneksi melalui browser:
-   `http://localhost:5000/api/health`
+### Layar Publik
+Untuk TV/monitor di area pelayanan, tanpa login dan tanpa data pribadi. Tampilannya selalu gelap dan menampilkan jam serta nomor yang sedang dilayani.
 
-Jika sukses, akan muncul JSON dengan status `ok` dan pesan bahwa API dan PostgreSQL terhubung.
+<p align="center"><img src="gambar/layar-publik.png" alt="Layar publik" width="85%"></p>
 
-## E. Jalankan frontend
-1. Buka terminal baru di VS Code (**Terminal > New Terminal**). Biarkan terminal backend tetap berjalan.
-2. Masuk ke folder frontend:
-   `cd frontend`
-   (Jika terminal baru dimulai dari folder utama, perintah ini langsung benar.)
-3. Install package:
-   `npm install`
-4. Jalankan:
-   `npm run dev`
-5. Buka alamat yang ditampilkan Vite, biasanya `http://localhost:5173`.
+### Mode Gelap
+Dashboard mahasiswa dan petugas mendukung mode gelap lewat tombol bulan/matahari di header. Pilihan tersimpan di browser.
 
-## F. Halaman aplikasi
-- Login: http://localhost:5173/login (mahasiswa & petugas, sesuai role diarahkan otomatis)
-- Mahasiswa: /mahasiswa · Petugas: /petugas · Layar publik: /display
+<p align="center"><img src="gambar/dark-mode.png" alt="Dashboard dalam mode gelap" width="85%"></p>
 
-## G. Uji alur antrean
-1. Buka `/login`, tab **Mahasiswa** > **Daftar** dengan NIM, nama, password.
-2. Pilih layanan, klik **Ambil Nomor** (mis. `K-001`). Coba ambil layanan yang sama lagi → ditolak.
-3. Di jendela lain/incognito, login **Petugas** (`petugas` / password dari seed).
-4. Klik **Panggil Berikutnya** pada kartu layanan → mahasiswa mendapat notifikasi & bunyi.
-5. Klik **Selesai** (atau **Lewati** bila tidak hadir). Data diperbarui otomatis tiap 5 detik.
+---
 
-## H. Menjalankan kembali pada hari berikutnya
-Tidak perlu install ulang. Jalankan dua terminal:
+## 🎛️ Fitur
 
-Terminal 1:
-`cd backend`
-`npm run dev`
+| | |
+|---|---|
+| **Login berbasis role** | `mahasiswa` dan `petugas`, dilindungi di frontend dan backend (JWT + cek role) |
+| **NIM unik** | Satu NIM hanya untuk satu akun |
+| **Antrean per layanan** | Kode sendiri: `KA` Konsultasi Akademik, `SA` Surat Aktif Kuliah, `LD` Legalisir Dokumen, `PC` Pengajuan Cuti, `LN` Lainnya (contoh nomor `KA-001`) |
+| **Notifikasi** | Bunyi dan notifikasi browser saat nomor dipanggil |
+| **Alat petugas** | Panggil berikutnya, panggil tiket tertentu, panggil ulang, selesai, lewati, pencarian, filter, ekspor CSV, rata-rata durasi layanan |
+| **Tampilan** | Mode gelap, skeleton loading, cache sementara |
+| **Realtime ringan** | Data diperbarui otomatis tiap 5 detik (polling) |
 
-Terminal 2:
-`cd frontend`
-`npm run dev`
+<details>
+<summary><b>Aturan antrean</b></summary>
 
-## Troubleshooting
-- `DATABASE_URL belum diatur`: pastikan file bernama `.env` (bukan `.env.example`) ada di folder `backend`.
-- `password authentication failed`: cek password dan URI Supabase.
-- `ENOTFOUND` atau timeout: cek koneksi internet, host, port, dan mode pooler dari URI.
-- `self-signed certificate` atau masalah SSL: gunakan konfigurasi `ssl` yang sudah tersedia di `backend/src/config/db.js`; jangan menambahkan opsi SSL lain tanpa memeriksa konfigurasi.
-- `EADDRINUSE 5000`: port 5000 sedang dipakai aplikasi lain.
-- `Network Error`: pastikan backend berjalan dan alamat API frontend tetap `http://localhost:5000/api`.
+- Maksimal **1 nomor per layanan per hari** untuk tiap mahasiswa.
+- Maksimal **2 antrean aktif** sekaligus.
+- Kuota harian per layanan, dan petugas bisa membuka/menutup layanan.
+- Nomor dibatalkan tidak dihitung; nomor dilewati (tidak hadir) tetap dihitung.
+- Antrean tiap layanan terpisah karena lama proses tiap layanan berbeda.
 
-## Catatan keamanan dan pembelajaran
-- Frontend tidak menyimpan password database.
-- Express menjadi perantara antara React dan PostgreSQL.
-- Connection string database hanya berada di `backend/.env`; jangan commit file ini ke GitHub.
-- Autentikasi, validasi, dan rate limiting sudah ada; untuk produksi tambahkan HTTPS dan atur `CORS_ORIGIN` ke domain asli.
-- Refresh otomatis 5 detik menggunakan polling, bukan WebSocket.
-- Ganti password petugas default sebelum dipublikasikan, dan gunakan `JWT_SECRET` yang acak.
+</details>
+
+---
+
+## 🗃️ Struktur Proyek
+
+```
+queueease/
+├── backend/
+│   └── src/
+│       ├── config/         koneksi database
+│       ├── middleware/     autentikasi JWT dan role
+│       ├── routes/         auth, layanan, queue
+│       ├── scripts/        seed akun petugas
+│       ├── utils/          fungsi bantu
+│       └── server.js
+├── frontend/
+│   └── src/
+│       ├── components/     komponen UI
+│       ├── context/        sesi login
+│       ├── hooks/          polling
+│       ├── pages/          Login, Mahasiswa, Petugas, Display
+│       ├── services/       pemanggil API
+│       ├── utils/          cache, notifikasi, layanan
+│       ├── App.jsx
+│       └── main.jsx
+├── database/
+│   └── schema.sql          skema dan data awal layanan
+├── gambar/                 tangkapan layar untuk README
+└── README.md
+```
+
+---
+
+## 🕹️ Cara Menjalankan
+
+**Prasyarat:** [Node.js LTS](https://nodejs.org/) dan akun [Supabase](https://supabase.com/). Tidak perlu memasang PostgreSQL lokal.
+
+### 1. Database
+1. Buat project baru di Supabase.
+2. Buka **SQL Editor > New query**, tempel seluruh isi `database/schema.sql`, lalu **Run**.
+3. Pastikan tabel `users`, `layanan` (5 baris), dan `antrean` muncul di **Table Editor**.
+4. Ambil connection string di **Connect > Session pooler > URI**. Jika password memuat karakter khusus (`@`, `#`, `/`, `:`), gunakan URL-encoding.
+
+### 2. Backend
+```bash
+cd backend
+npm install
+cp .env.example .env      # Windows CMD: copy .env.example .env
+```
+Isi `backend/.env`:
+```env
+PORT=5000
+DATABASE_URL=postgresql://...URI_DARI_SUPABASE...
+JWT_SECRET=teks-acak-minimal-16-karakter
+APP_TIMEZONE=Asia/Makassar
+CORS_ORIGIN=http://localhost:5173
+ADMIN_USERNAME=petugas
+ADMIN_PASSWORD=ganti-password-ini
+ADMIN_NAME=Petugas Akademik
+```
+```bash
+npm run seed:petugas
+npm run dev
+```
+Cek `http://localhost:5000/api/health`, hasilnya harus berstatus `ok`.
+
+### 3. Frontend
+Buka terminal baru:
+```bash
+cd frontend
+npm install
+npm run dev
+```
+Buka `http://localhost:5173`.
+
+### Uji alur
+1. Di `/login`, pilih **Mahasiswa**, lalu **Daftar** (NIM, nama, password).
+2. Pilih layanan dan **Ambil Nomor** (misal `KA-001`).
+3. Di jendela incognito, login sebagai **Petugas**.
+4. Klik **Panggil Berikutnya**; mahasiswa menerima notifikasi.
+5. Klik **Selesai**, atau **Lewati** bila tidak hadir.
+
+---
+
+## 🛰️ Ringkasan API
+
+<details>
+<summary><b>Lihat daftar endpoint</b></summary>
+
+| Method | Endpoint | Akses | Fungsi |
+|---|---|---|---|
+| POST | `/api/auth/register` | Publik | Daftar mahasiswa |
+| POST | `/api/auth/login` | Publik | Login mahasiswa/petugas |
+| GET | `/api/auth/me` | Login | Validasi sesi |
+| GET | `/api/layanan` | Publik | Papan layanan dan nomor dilayani |
+| PATCH | `/api/layanan/:id/aktif` | Petugas | Buka/tutup layanan |
+| GET | `/api/queue/me` dan `/me/riwayat` | Mahasiswa | Tiket saya dan riwayat |
+| POST | `/api/queue` | Mahasiswa | Ambil nomor |
+| PATCH | `/api/queue/:id/cancel` | Mahasiswa | Batalkan tiket |
+| GET | `/api/queue` dan `/stats` | Petugas | Daftar antrean dan statistik |
+| PATCH | `/api/queue/call-next`, `/:id/call`, `/:id/recall` | Petugas | Memanggil |
+| PATCH | `/api/queue/:id/done` dan `/:id/skip` | Petugas | Selesai / lewati |
+
+</details>
+
+---
+
+## 🧹 Reset Data
+
+Untuk membersihkan data sebelum demo. Jalankan di Supabase SQL Editor; akun petugas dan layanan tetap ada.
+```sql
+TRUNCATE TABLE public.antrean RESTART IDENTITY;
+DELETE FROM public.users WHERE role = 'mahasiswa';
+UPDATE public.layanan SET aktif = true;
+```
+
+---
+
+## 🔐 Keamanan
+
+- Password di-hash (bcrypt), dan login/daftar dibatasi rate limiting.
+- `backend/.env` tidak boleh diunggah ke GitHub (diabaikan lewat `.gitignore`).
+- RLS aktif pada tabel Supabase sehingga tidak bisa dibaca lewat REST API publik Supabase.
+- Ganti `ADMIN_PASSWORD` dan gunakan `JWT_SECRET` yang acak sebelum dipublikasikan.
+
+---
+
+## 🩺 Troubleshooting
+
+<details>
+<summary><b>Lihat masalah umum</b></summary>
+
+| Masalah | Solusi |
+|---|---|
+| `DATABASE_URL belum diatur` | Pastikan file bernama `.env` (bukan `.env.example`) ada di `backend` |
+| `JWT_SECRET belum diatur` | Isi `JWT_SECRET` minimal 16 karakter di `backend/.env` |
+| `password authentication failed` | Cek password dan URI Supabase |
+| `ENOTFOUND` / timeout | Cek internet, host, port, dan mode pooler pada URI |
+| `EADDRINUSE 5000` | Port 5000 dipakai aplikasi lain |
+| `Network Error` di browser | Pastikan backend berjalan di `http://localhost:5000` |
+| Layar putih / error JSX | Pastikan file yang berisi JSX berekstensi `.jsx` |
+
+</details>
+
+---
+
+## 🧑‍🤝‍🧑 Tim
+
+<div align="center">
+
+**Praktikum Pemrograman Berbasis Framework, STITEK**
+
+| Nama | NIM |
+|---|---|
+| Muhammad Ikbal | 202412008 |
+| Achmad Gibran | 202412003 |
+| Mosyarofah | 202412032 |
+| Vanesa Gladisya Mamanua | 202412021 |
+| Sarmila | 202312080 |
+
+</div>
